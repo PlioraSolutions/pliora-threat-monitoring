@@ -1,0 +1,266 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+:root[data-theme="dark"] {
+  --bg: #0E1316;
+  --bg-raised: #141A1E;
+  --surface: #161C20;
+  --surface-raised: #1E262B;
+  --surface-overlay: #262F35;
+  --border: #232C31;
+  --border-strong: #3A464D;
+
+  --text-primary: #E9EDEF;
+  --text-secondary: #8E9BA3;
+  --text-tertiary: #62707A;
+
+  --accent: #4C7EF2;
+  --accent-hover: #6690F5;
+  --accent-muted: #1C2A44;
+
+  --sev-critical: #F0555F;
+  --sev-critical-bg: #34181A;
+  --sev-high: #F2954A;
+  --sev-high-bg: #33231A;
+  --sev-medium: #E8C34C;
+  --sev-medium-bg: #322D18;
+  --sev-low: #63C68A;
+  --sev-low-bg: #17281F;
+  --sev-info: #7A8A94;
+  --sev-info-bg: #1D2428;
+
+  --node-idle: #3A464D;
+  --node-line: #2A343A;
+
+  --success: #63C68A;
+  --danger: #F0555F;
+
+  --mono-bg: #10161A;
+  --mono-border: #263038;
+}
+
+:root[data-theme="light"] {
+  --bg: #F7F8F9;
+  --bg-raised: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-raised: #FFFFFF;
+  --surface-overlay: #F0F2F4;
+  --border: #DDE2E6;
+  --border-strong: #C7CED3;
+
+  --text-primary: #1A2226;
+  --text-secondary: #5B6870;
+  --text-tertiary: #8A959B;
+
+  --accent: #3564D8;
+  --accent-hover: #2A52B8;
+  --accent-muted: #E9EFFC;
+
+  --sev-critical: #D8383F;
+  --sev-critical-bg: #FCE9E9;
+  --sev-high: #C96A1E;
+  --sev-high-bg: #FBEEE0;
+  --sev-medium: #A6821A;
+  --sev-medium-bg: #FAF3DA;
+  --sev-low: #2E8F5C;
+  --sev-low-bg: #E7F5ED;
+  --sev-info: #5B6870;
+  --sev-info-bg: #EEF0F2;
+
+  --node-idle: #C7CED3;
+  --node-line: #DDE2E6;
+
+  --success: #2E8F5C;
+  --danger: #D8383F;
+
+  --mono-bg: #F1F3F4;
+  --mono-border: #DDE2E6;
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, sans-serif;
+  min-height: 100vh;
+}
+
+.font-mono,
+code,
+pre,
+.evidence-value {
+  font-family: var(--font-mono), monospace !important;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Subtle link underline transition per §5 */
+.link-hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: opacity 120ms ease;
+}
+.link-hover:hover {
+  opacity: 0.8;
+}
+
+/* Scroll reveal helper (single 300ms fade-up 12px) */
+@keyframes fadeUpInitial {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeUpInitial 300ms ease-out forwards;
+}
+
+/* Hero Staggered Line Reveal (§3 & §7) */
+@keyframes heroLineReveal {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-line-1 {
+  animation: heroLineReveal 650ms cubic-bezier(0.16, 1, 0.3, 1) 40ms forwards;
+  opacity: 0;
+}
+
+.hero-line-2 {
+  animation: heroLineReveal 650ms cubic-bezier(0.16, 1, 0.3, 1) 120ms forwards;
+  opacity: 0;
+}
+
+.hero-subhead {
+  animation: heroLineReveal 650ms cubic-bezier(0.16, 1, 0.3, 1) 270ms forwards;
+  opacity: 0;
+}
+
+.hero-form {
+  animation: heroLineReveal 650ms cubic-bezier(0.16, 1, 0.3, 1) 350ms forwards;
+  opacity: 0;
+}
+
+/* 40s Continuous Linear Marquee (§3 & §7) */
+@keyframes marqueeScroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marqueeScroll 40s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .hero-line-1,
+  .hero-line-2,
+  .hero-subhead,
+  .hero-form {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .animate-marquee {
+    animation: none !important;
+  }
+}
+
+/* Hero Cyber-Eye Decorative Background */
+.hero-eye-img {
+  mix-blend-mode: multiply;
+  transition: filter 250ms ease, opacity 250ms ease;
+}
+
+:root[data-theme="dark"] .hero-eye-img,
+:root:not([data-theme="light"]) .hero-eye-img {
+  filter: invert(1) hue-rotate(180deg);
+  mix-blend-mode: screen;
+}
+
+@keyframes progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(20%);
+  }
+  100% {
+    transform: translateX(150%);
+  }
+}
+
+/* Cinematic Brand Intro Keyframes */
+@keyframes cinematicCamera {
+  0% {
+    transform: scale(0.985);
+  }
+  100% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes cinematicAmbientPulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes cinematicMacronGlow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(96, 165, 250, 0.7), 0 0 20px rgba(59, 130, 246, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(147, 197, 253, 0.9), 0 0 32px rgba(59, 130, 246, 0.6);
+  }
+}
+
+.animate-cinematic-camera {
+  animation: cinematicCamera 3.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-ambient-pulse {
+  animation: cinematicAmbientPulse 4s ease-in-out infinite;
+}
+
+.animate-macron-glow {
+  animation: cinematicMacronGlow 2.4s ease-in-out infinite;
+}
+
+
+

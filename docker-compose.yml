@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pliora_threat_monitor_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongo:27017/pliora_threat_monitor
+      - REDIS_URL=redis://redis:6379
+      - NEXTAUTH_SECRET=pliora_production_secure_secret_key_change_me_12345
+      - JWT_SECRET=pliora_production_jwt_secret_key_change_me_12345
+      - ENABLE_IN_MEMORY_QUEUE_FALLBACK=true
+      - SCAN_WORKER_CONCURRENCY=5
+    depends_on:
+      - mongo
+      - redis
+
+  mongo:
+    image: mongo:7.0
+    container_name: pliora_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: pliora_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mongo_data:
+  redis_data:

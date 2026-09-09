@@ -1,0 +1,36 @@
+{
+  "name": "pliora-threat-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "tsx tests/phase1.test.ts && tsx tests/security_ssrf.test.ts && tsx tests/auth_multitenancy.test.ts && tsx tests/plugins_pipeline.test.ts && tsx tests/risk_scoring.test.ts && tsx tests/api_findings.test.ts && tsx tests/discovery_engine.test.ts && tsx tests/alerting_system.test.ts && tsx tests/threat_monitoring.test.ts && tsx tests/ai_analyst.test.ts && tsx tests/frontend_routes.test.ts && tsx tests/roadmap_phase_a.test.ts && tsx tests/billing_subscription.test.ts && tsx tests/production_hardening.test.ts && tsx tests/phase_b_moat.test.ts && tsx tests/agency_resale.test.ts",
+    "worker": "tsx src/workers/runner.ts"
+  },
+  "dependencies": {
+    "@types/pdfkit": "^0.17.6",
+    "autoprefixer": "^10.4.20",
+    "bullmq": "^5.21.2",
+    "clsx": "^2.1.1",
+    "ioredis": "^5.4.1",
+    "lucide-react": "^0.453.0",
+    "mongoose": "^8.7.2",
+    "next": "^14.2.15",
+    "pdfkit": "^0.20.2",
+    "postcss": "^8.4.47",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.5.4",
+    "tailwindcss": "^3.4.14",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}
