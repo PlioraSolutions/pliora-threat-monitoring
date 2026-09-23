@@ -5,6 +5,7 @@ import { User } from '@/models/User';
 import { Organization } from '@/models/Organization';
 import { verifyPassword, createSessionToken, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { memoryStore } from '@/lib/store';
+import { ensureDemoAccountInMongo } from '@/lib/seedDemo';
 
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email('Invalid email address'),
@@ -34,20 +35,29 @@ export async function POST(request: NextRequest) {
     let user: any = null;
     let org: any = null;
 
-    console.log('[LOGIN DEBUG] email:', email, '| mongoActive:', isMongoActive());
-    console.log('[LOGIN DEBUG] store user keys:', Array.from(memoryStore.users.keys()));
-
     if (isMongoActive()) {
       user = await User.findOne({ email });
-      if (user) {
+      if (!user && email === 'demo@pliora.io') {
+        const seeded = await ensureDemoAccountInMongo();
+        if (seeded) {
+          user = seeded.user;
+          org = seeded.org;
+        }
+      } else if (user) {
         org = await Organization.findById(user.activeOrganizationId);
       }
     } else {
       user = memoryStore.users.get(email);
-      console.log('[LOGIN DEBUG] user found:', !!user, '| passwordHash present:', !!user?.passwordHash);
       if (user) {
         org = memoryStore.organizations.get(user.activeOrganizationId.toString());
-        console.log('[LOGIN DEBUG] org found:', !!org);
+      }
+    }
+
+    // Secondary safety fallback: if user is demo@pliora.io and not found in DB, pull from memoryStore
+    if (!user && email === 'demo@pliora.io') {
+      user = memoryStore.users.get(email);
+      if (user) {
+        org = memoryStore.organizations.get(user.activeOrganizationId.toString());
       }
     }
 

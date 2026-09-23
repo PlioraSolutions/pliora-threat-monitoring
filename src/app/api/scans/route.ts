@@ -87,13 +87,13 @@ export async function POST(request: NextRequest) {
     }
 
     // STRICT SECURITY GATE: Only scan customer-authorized & verified assets
-    if (asset.verificationStatus !== 'VERIFIED') {
+    if (asset.verificationStatus !== 'VERIFIED' && asset.verificationStatus !== 'INHERITED_VERIFIED') {
       return NextResponse.json(
         {
           success: false,
           error: {
             code: 'UNAUTHORIZED_TARGET',
-            message: `Scans are strictly prohibited on unverified assets. You must verify ownership of ${asset.fqdn} via DNS TXT record before scanning.`,
+            message: `Scans are strictly prohibited on unverified assets. You must verify ownership of ${asset.fqdn} via DNS TXT record or fast-track verification before scanning.`,
           },
         },
         { status: 403 }

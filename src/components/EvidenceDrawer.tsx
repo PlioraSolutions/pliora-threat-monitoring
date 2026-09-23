@@ -81,14 +81,16 @@ export function EvidenceDrawer({
     }
   };
 
+  const effectiveFindingId = finding?.id || (finding as any)?._id;
+
   useEffect(() => {
-    if (finding && isOpen) {
-      fetchAiExplanation(finding.id);
+    if (effectiveFindingId && isOpen) {
+      fetchAiExplanation(effectiveFindingId);
     } else {
       setAiData(null);
       setAiError(null);
     }
-  }, [finding?.id, isOpen]);
+  }, [effectiveFindingId, isOpen]);
 
   if (!isOpen || !finding) return null;
 

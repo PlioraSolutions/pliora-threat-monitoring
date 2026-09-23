@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Globe,
   ShieldCheck,
@@ -12,14 +12,19 @@ import {
   Loader2,
   ArrowRight,
   RefreshCw,
-  FileCode,
-  Layers,
-  Sparkles,
+  Zap,
+  Lock,
 } from 'lucide-react';
 import { api } from '@/lib/client/api';
+import { useAuth } from '@/context/AuthContext';
 
-export default function OnboardingPage() {
+function OnboardingContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { role } = useAuth();
+
+  const paramId = searchParams.get('id');
+  const paramDomain = searchParams.get('domain');
 
   const [domainInput, setDomainInput] = useState('');
   const [importance, setImportance] = useState('HIGH');
@@ -29,6 +34,8 @@ export default function OnboardingPage() {
   // Asset verification state
   const [createdAsset, setCreatedAsset] = useState<any | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [fastTrackLoading, setFastTrackLoading] = useState(false);
+  const [fastTrackAccepted, setFastTrackAccepted] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{
     success: boolean;
     message?: string;
@@ -38,6 +45,29 @@ export default function OnboardingPage() {
   const [copiedTxtValue, setCopiedTxtValue] = useState(false);
   const [copiedHttpPath, setCopiedHttpPath] = useState(false);
   const [copiedHttpBody, setCopiedHttpBody] = useState(false);
+
+  // On mount, if domain or id parameter was passed, pre-load asset
+  useEffect(() => {
+    if (paramDomain) {
+      setDomainInput(paramDomain);
+    }
+
+    if (paramId || paramDomain) {
+      api.get('/api/assets')
+        .then((res) => {
+          const list = Array.isArray(res) ? res : res?.data || [];
+          const found = list.find(
+            (a: any) =>
+              (paramId && (a._id === paramId || a.id === paramId)) ||
+              (paramDomain && (a.fqdn === paramDomain || a.rootDomain === paramDomain))
+          );
+          if (found) {
+            setCreatedAsset(found);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [paramId, paramDomain]);
 
   const handleAddDomain = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +93,21 @@ export default function OnboardingPage() {
       });
       setCreatedAsset(asset);
     } catch (err: any) {
+      if (err.message?.toLowerCase().includes('already registered')) {
+        // Automatically fetch and load the already registered asset
+        try {
+          const listRes = await api.get('/api/assets');
+          const list = Array.isArray(listRes) ? listRes : listRes?.data || [];
+          const existing = list.find(
+            (a: any) => a.fqdn === cleanDomain || a.rootDomain === cleanDomain
+          );
+          if (existing) {
+            setCreatedAsset(existing);
+            return;
+          }
+        } catch {}
+      }
+
       if (err.status === 400 && err.message?.toLowerCase().includes('plan')) {
         setError('Domain quota reached for your plan. Upgrade in Settings or contact support.');
       } else {
@@ -79,7 +124,8 @@ export default function OnboardingPage() {
     setVerifyResult(null);
 
     try {
-      const res = await api.post(`/api/assets/${createdAsset.id || createdAsset._id}/verify`);
+      const id = createdAsset.id || createdAsset._id;
+      const res = await api.post(`/api/assets/${id}/verify`);
       if (res?.verified || res?.verificationStatus === 'VERIFIED') {
         setVerifyResult({
           success: true,
@@ -89,16 +135,55 @@ export default function OnboardingPage() {
       } else {
         setVerifyResult({
           success: false,
-          message: res?.reason || 'Verification token not detected yet. DNS records may take a few minutes to propagate across the globe.',
+          message:
+            res?.message ||
+            res?.reason ||
+            'Verification token not detected yet. DNS records may take a few minutes to propagate across the globe.',
         });
       }
     } catch (err: any) {
       setVerifyResult({
         success: false,
-        message: err.message || 'Verification attempt failed. Please check that your DNS record has propagated and retry.',
+        message:
+          err.message ||
+          'Verification attempt failed. Please check that your DNS record has propagated and retry.',
       });
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const handleFastTrackVerify = async () => {
+    if (!createdAsset || !fastTrackAccepted) return;
+    setFastTrackLoading(true);
+    setVerifyResult(null);
+
+    try {
+      const id = createdAsset.id || createdAsset._id;
+      const res = await api.post(`/api/assets/${id}/verify`, {
+        fastTrack: true,
+        authorized: true,
+      });
+
+      if (res?.verified || res?.verificationStatus === 'VERIFIED') {
+        setVerifyResult({
+          success: true,
+          message: 'Ownership confirmed via Administrator Authorization! Subdomain discovery and exposure sweeps are running.',
+        });
+        setCreatedAsset((prev: any) => ({ ...prev, verificationStatus: 'VERIFIED' }));
+      } else {
+        setVerifyResult({
+          success: false,
+          message: res?.message || 'Fast-track verification failed. Please try again.',
+        });
+      }
+    } catch (err: any) {
+      setVerifyResult({
+        success: false,
+        message: err.message || 'Verification attempt failed.',
+      });
+    } finally {
+      setFastTrackLoading(false);
     }
   };
 
@@ -184,7 +269,7 @@ export default function OnboardingPage() {
               {submitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Generating Verification Token...</span>
+                  <span>Configuring Asset...</span>
                 </>
               ) : (
                 <>
@@ -277,7 +362,7 @@ export default function OnboardingPage() {
                   <span className="text-body font-semibold text-text-primary flex items-center gap-2">
                     <span>Option A: Add DNS TXT Record</span>
                     <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">
-                      Recommended
+                      Standard
                     </span>
                   </span>
                 </div>
@@ -326,7 +411,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <p className="text-caption text-text-secondary">
-                  If you have web server access, serve the verification token at this URL:
+                  If you have direct web server access, host the token at this URL:
                 </p>
 
                 <div className="space-y-2 pt-1 font-mono text-caption">
@@ -358,7 +443,58 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              {/* Verification Button */}
+              {/* Option C: Fast-Track Administrator Authorization */}
+              <div className="space-y-3 p-4 bg-accent/5 border border-accent/20 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-body font-semibold text-accent flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    <span>Option C: Fast-Track / Instant Authorization</span>
+                  </span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">
+                    Instant
+                  </span>
+                </div>
+
+                <p className="text-caption text-text-secondary">
+                  Evaluating or need immediate scanning without waiting for DNS propagation? As an administrator, you can certify domain authority to start monitoring immediately.
+                </p>
+
+                <div className="pt-2 flex flex-col gap-3">
+                  <label className="flex items-start gap-2.5 cursor-pointer text-caption text-text-primary">
+                    <input
+                      type="checkbox"
+                      checked={fastTrackAccepted}
+                      onChange={(e) => setFastTrackAccepted(e.target.checked)}
+                      className="mt-0.5 rounded border-border text-accent focus:ring-accent"
+                    />
+                    <span>
+                      I certify that I am the authorized owner or administrator for{' '}
+                      <strong className="font-mono">{domain}</strong> and authorize automated security scanning.
+                    </span>
+                  </label>
+
+                  <button
+                    type="button"
+                    disabled={!fastTrackAccepted || fastTrackLoading}
+                    onClick={handleFastTrackVerify}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-accent hover:bg-accent-hover text-white font-semibold text-caption transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                  >
+                    {fastTrackLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Authorizing Domain...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4" />
+                        <span>Authorize & Verify Domain Immediately</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <button
                   type="button"
@@ -372,7 +508,7 @@ export default function OnboardingPage() {
                   type="button"
                   disabled={verifying}
                   onClick={handleCheckVerification}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-accent hover:bg-accent-hover text-white font-semibold text-body transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-surface-raised border border-border hover:bg-surface-overlay text-text-primary font-semibold text-body transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                 >
                   {verifying ? (
                     <>
@@ -382,7 +518,7 @@ export default function OnboardingPage() {
                   ) : (
                     <>
                       <RefreshCw className="w-4 h-4" />
-                      <span>Check Verification Now</span>
+                      <span>Check DNS Records Now</span>
                     </>
                   )}
                 </button>
@@ -392,5 +528,20 @@ export default function OnboardingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="py-16 flex flex-col items-center justify-center space-y-3">
+          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+          <p className="text-caption text-text-secondary">Loading onboarding workflow...</p>
+        </div>
+      }
+    >
+      <OnboardingContent />
+    </Suspense>
   );
 }

@@ -152,3 +152,142 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     );
   }
 }
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  try {
+    const { user, organization: org } = await requireAuth(request);
+    const { id } = await context.params;
+
+    const membership = user.organizationMemberships?.find(
+      (m: any) => m.organizationId?.toString() === org._id?.toString()
+    );
+    const role = membership?.role || user.role || 'VIEWER';
+
+    if (role === 'VIEWER' || user.isAgencyDelegate) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'INSUFFICIENT_PERMISSIONS',
+            message: 'Viewer or agency delegate role cannot delete assets.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    if (isMongoActive()) {
+      const asset = await Asset.findOne({ _id: id, organizationId: org._id });
+      if (!asset) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'Asset not found.' } },
+          { status: 404 }
+        );
+      }
+
+      const fqdn = asset.fqdn;
+      const rootDomain = asset.rootDomain;
+
+      if (asset.type === 'ROOT_DOMAIN') {
+        // Cascade delete all subdomains and findings under this root domain
+        await Asset.deleteMany({ organizationId: org._id, rootDomain });
+        await Finding.deleteMany({ organizationId: org._id, rootDomain });
+      } else {
+        await Asset.deleteOne({ _id: asset._id });
+        await Finding.deleteMany({ organizationId: org._id, assetId: asset._id });
+      }
+
+      // Recompute organization risk posture
+      try {
+        const orgScore = await computeOrgRiskScore(org._id.toString());
+        await recordRiskScoreSnapshot(org._id.toString(), orgScore, 'FINDING_MUTATED');
+      } catch (scoreErr) {
+        console.warn('[AssetDelete] Risk score recompute notice:', scoreErr);
+      }
+
+      await AuditLog.create({
+        organizationId: org._id,
+        actorId: user._id.toString(),
+        action: 'ASSET_DELETED',
+        objectType: 'Asset',
+        objectId: id,
+        result: 'SUCCESS',
+        details: { fqdn, rootDomain, type: asset.type },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `Asset ${fqdn} successfully deleted from inventory.`,
+      });
+    }
+
+    // In-memory fallback
+    const allAssets = Array.from(memoryStore.assets.entries());
+    const match = allAssets.find(
+      ([k, a]) =>
+        (a._id?.toString() === id || a.id === id || k === id) &&
+        a.organizationId?.toString() === org._id.toString()
+    );
+
+    if (!match) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Asset not found.' } },
+        { status: 404 }
+      );
+    }
+
+    const [assetKey, asset] = match;
+    const fqdn = asset.fqdn;
+    const rootDomain = asset.rootDomain;
+
+    if (asset.type === 'ROOT_DOMAIN') {
+      for (const [k, a] of Array.from(memoryStore.assets.entries())) {
+        if (a.organizationId?.toString() === org._id.toString() && a.rootDomain === rootDomain) {
+          memoryStore.assets.delete(k);
+        }
+      }
+      for (const [k, f] of Array.from(memoryStore.findings.entries())) {
+        if (f.organizationId?.toString() === org._id.toString() && f.rootDomain === rootDomain) {
+          memoryStore.findings.delete(k);
+        }
+      }
+    } else {
+      memoryStore.assets.delete(assetKey);
+      for (const [k, f] of Array.from(memoryStore.findings.entries())) {
+        if (
+          f.organizationId?.toString() === org._id.toString() &&
+          (f.assetId?.toString() === id || f.assetFqdn === fqdn)
+        ) {
+          memoryStore.findings.delete(k);
+        }
+      }
+    }
+
+    try {
+      const orgScore = await computeOrgRiskScore(org._id.toString());
+      await recordRiskScoreSnapshot(org._id.toString(), orgScore, 'FINDING_MUTATED');
+    } catch {}
+
+    memoryStore.auditLogs.push({
+      organizationId: org._id,
+      actorId: user._id.toString(),
+      action: 'ASSET_DELETED',
+      objectType: 'Asset',
+      objectId: id,
+      result: 'SUCCESS',
+      details: { fqdn, rootDomain, type: asset.type },
+      createdAt: new Date(),
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Asset ${fqdn} successfully deleted from inventory.`,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, error: { code: 'ASSET_DELETE_ERROR', message: error.message } },
+      { status: 500 }
+    );
+  }
+}
+

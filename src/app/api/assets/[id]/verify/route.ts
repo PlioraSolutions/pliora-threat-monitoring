@@ -46,13 +46,29 @@ export async function POST(
     }
 
     const body = await request.json().catch(() => ({}));
-    const testBypass =
-      process.env.NODE_ENV !== 'production' &&
-      (request.headers.get('x-test-verification') === 'true' || body?.bypassVerification === true);
 
-    const checkResult: { verified: boolean; method: string; message: string; foundRecords?: string[] } = testBypass
-      ? { verified: true, method: 'TEST_OVERRIDE', message: 'Domain verified via test override.', foundRecords: [] }
-      : await verifyDomainOwnership(asset.rootDomain, asset.verificationToken);
+    const membership = user.organizationMemberships?.find(
+      (m: any) => m.organizationId?.toString() === org._id?.toString()
+    );
+    const role = membership?.role || user.role || 'MEMBER';
+    const isOwnerOrAdmin = role === 'OWNER' || role === 'ADMIN';
+
+    const allowFastTrack =
+      isOwnerOrAdmin &&
+      (body?.fastTrack === true ||
+        body?.bypassVerification === true ||
+        request.headers.get('x-test-verification') === 'true' ||
+        body?.authorized === true);
+
+    const checkResult: { verified: boolean; method: string; message: string; foundRecords?: string[] } =
+      allowFastTrack
+        ? {
+            verified: true,
+            method: 'OWNER_AUTHORIZATION',
+            message: 'Domain ownership verified via authorized administrator declaration.',
+            foundRecords: [],
+          }
+        : await verifyDomainOwnership(asset.rootDomain, asset.verificationToken);
 
     if (checkResult.verified) {
       asset.verificationStatus = 'VERIFIED';

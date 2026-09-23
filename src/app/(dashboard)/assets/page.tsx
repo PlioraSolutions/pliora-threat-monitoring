@@ -15,6 +15,7 @@ import {
   Loader2,
   ExternalLink,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/client/api';
@@ -122,6 +123,50 @@ export default function AssetsPage() {
       setActionFeedback({
         id,
         message: err.message || 'Failed to queue scan.',
+        isError: true,
+      });
+    } finally {
+      setActionAssetId(null);
+    }
+  };
+
+  const handleDeleteAsset = async (asset: AssetItem) => {
+    if (isViewer) return;
+    const id = asset._id || asset.id!;
+    const isRoot =
+      asset.type === 'ROOT_DOMAIN' ||
+      !asset.fqdn.includes('.') ||
+      asset.fqdn === asset.rootDomain;
+
+    const confirmMsg = isRoot
+      ? `Are you sure you want to delete root domain "${asset.fqdn}"? This will also remove all its discovered subdomains and associated scan findings.`
+      : `Are you sure you want to delete asset "${asset.fqdn}" from inventory?`;
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    setActionAssetId(id);
+    setActionFeedback(null);
+
+    try {
+      await api.delete(`/api/assets/${id}`);
+      setActionFeedback({
+        id,
+        message: `Asset "${asset.fqdn}" was successfully deleted.`,
+      });
+      setAssets((prev) =>
+        prev.filter((a) => {
+          const aId = a._id || a.id;
+          if (aId === id) return false;
+          if (isRoot && a.rootDomain === asset.rootDomain) return false;
+          return true;
+        })
+      );
+    } catch (err: any) {
+      setActionFeedback({
+        id,
+        message: err.message || 'Failed to delete asset.',
         isError: true,
       });
     } finally {
@@ -364,7 +409,7 @@ export default function AssetsPage() {
                         <div className="flex items-center justify-end gap-2">
                           {!isVerified ? (
                             <Link
-                              href="/onboarding"
+                              href={`/onboarding?id=${id}&domain=${encodeURIComponent(asset.rootDomain || asset.fqdn)}`}
                               className="px-3 py-1 rounded bg-sev-medium/10 text-sev-medium hover:bg-sev-medium/20 text-caption font-semibold border border-sev-medium/30 transition-colors"
                             >
                               Verify
@@ -396,6 +441,16 @@ export default function AssetsPage() {
                               </button>
                             </>
                           )}
+
+                          {/* Delete Asset Button */}
+                          <button
+                            disabled={isActionLoading || isViewer}
+                            onClick={() => handleDeleteAsset(asset)}
+                            title={`Delete ${asset.fqdn} from asset inventory`}
+                            className="p-1.5 rounded bg-sev-critical/10 hover:bg-sev-critical/20 text-sev-critical border border-sev-critical/20 hover:border-sev-critical/40 transition-colors flex items-center justify-center disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>

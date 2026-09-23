@@ -38,14 +38,14 @@ export async function connectToDatabase(): Promise<typeof mongoose | null> {
     return null;
   }
 
-  // 2. If previously marked unavailable, enforce guardrail in production
-  if (cached!.isAvailable === false) {
-    if (isGuardrailEnforced()) {
-      throw new Error(
-        'FATAL PRODUCTION ERROR: MongoDB is marked unavailable. In-memory fallback is strictly prohibited in production environment.'
-      );
-    }
-    return null;
+  // 2. Allow retry if previously marked unavailable rather than permanently locking out
+  if (cached!.isAvailable === false && !isProductionEnvironment()) {
+    // Reset cache to allow reconnection attempt
+    cached!.isAvailable = null;
+  } else if (cached!.isAvailable === false && isGuardrailEnforced()) {
+    throw new Error(
+      'FATAL PRODUCTION ERROR: MongoDB is marked unavailable. In-memory fallback is strictly prohibited in production environment.'
+    );
   }
 
   if (cached!.conn) {
@@ -55,7 +55,8 @@ export async function connectToDatabase(): Promise<typeof mongoose | null> {
   if (!cached!.promise) {
     const opts: mongoose.ConnectOptions = {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 1500, // Quick failover to in-memory store if MongoDB is offline
+      serverSelectionTimeoutMS: 8000, // 8s connection window for Atlas TLS handshake
+      socketTimeoutMS: 45000,
     };
 
     cached!.promise = mongoose.connect(env.MONGODB_URI, opts).then((mongooseInstance) => {

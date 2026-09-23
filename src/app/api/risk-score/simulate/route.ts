@@ -5,7 +5,7 @@ import { simulateRiskScoreIfResolved } from '@/lib/risk/orgScore';
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
-    const orgId = auth.user.activeOrganizationId;
+    const orgId = auth.organization?._id || auth.user?.activeOrganizationId;
 
     if (!orgId) {
       return NextResponse.json(
